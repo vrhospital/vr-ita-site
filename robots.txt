@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
+Disallow: /app/
 
-Sitemap: https://vr.sbache.com/sitemap.xml
+Sitemap: https://vrita.dk/sitemap.xml

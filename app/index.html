@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>VR ITA</title>
+<style>
+  :root{
+    --bg:#f4f6f7; --flade:#ffffff; --tekst:#1c2326; --daemp:#5b6a70; --kant:#d9e0e3;
+    --accent:#1b6a73; --accent-moerk:#145059; --groen:#2e8b57; --roed:#b23a3a; --gul:#b98700;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#101619; --flade:#182024; --tekst:#e8edef; --daemp:#9aa8ae; --kant:#2a363b; --accent:#3aa0ab; --accent-moerk:#2b8690; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--tekst);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--accent);color:#fff}
+  header .logo{font-weight:700;letter-spacing:.04em;text-decoration:none;color:#fff;font-size:18px}
+  header .hvem{font-size:14px;opacity:.9}
+  main{max-width:560px;margin:0 auto;padding:20px 16px 48px}
+  h1{font-size:24px;margin:8px 0 12px}
+  h2{font-size:18px;margin:24px 0 8px}
+  p{margin:8px 0}
+  .kort{background:var(--flade);border:1px solid var(--kant);border-radius:12px;padding:16px;margin:12px 0}
+  .daemp{color:var(--daemp)}
+  label{display:block;font-size:14px;color:var(--daemp);margin:12px 0 4px}
+  input[type=text],input[type=email],input[type=tel],select{width:100%;font:inherit;font-size:17px;padding:12px 12px;border:1px solid var(--kant);border-radius:10px;background:var(--flade);color:var(--tekst)}
+  input.kode{font-size:28px;letter-spacing:.35em;text-align:center}
+  .knap{display:inline-block;width:100%;font:inherit;font-size:17px;font-weight:600;padding:14px 16px;border:0;border-radius:12px;background:var(--accent);color:#fff;cursor:pointer;text-align:center;text-decoration:none;margin-top:12px}
+  .knap:active{background:var(--accent-moerk)}
+  .knap.sekundaer{background:transparent;color:var(--accent);border:1.5px solid var(--accent)}
+  .knap.lille{width:auto;font-size:15px;padding:9px 14px;margin-top:0}
+  .knap[disabled]{opacity:.5;cursor:default}
+  .stor{font-size:22px;padding:20px}
+  .fejl{color:var(--roed);margin-top:10px}
+  .ok{color:var(--groen)}
+  .raekke{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--kant)}
+  .raekke:first-child{border-top:0}
+  .lille-tekst{font-size:13px;color:var(--daemp)}
+  .tael{font-size:40px;font-weight:700;text-align:center;letter-spacing:.05em}
+  .status{text-align:center;font-size:18px;margin:10px 0}
+  .faner{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px}
+  .faner a{padding:8px 12px;border-radius:999px;border:1px solid var(--kant);text-decoration:none;color:var(--tekst);font-size:14px}
+  .faner a.aktiv{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .tjek{display:flex;gap:10px;align-items:flex-start;margin:14px 0}
+  .tjek input{width:22px;height:22px;margin-top:2px}
+  .tjek span{font-size:15px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .pille{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;background:var(--kant);color:var(--tekst)}
+  .pille.groen{background:#d7efe1;color:#1d5c38}
+  .pille.gul{background:#f6ecc7;color:#6b4e00}
+  .pille.roed{background:#f4d6d6;color:#7a2727}
+  nav.bund{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+  a{color:var(--accent)}
+  .skjult{display:none}
+  footer{text-align:center;font-size:12px;color:var(--daemp);padding:24px 16px}
+</style>
+</head>
+<body>
+<header>
+  <a class="logo" href="#/">VR ITA</a>
+  <span class="hvem" id="hvem"></span>
+</header>
+<main id="main"><p class="daemp">Indlæser …</p></main>
+<footer id="fod"><a href="../">vrita.dk</a> · VR ITA · <a href="#/privatliv">Privatliv</a></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+<script>
+(function(){
+  'use strict';
+  const URL_ = 'https://pkincwcubgemtnkkevhp.supabase.co';
+  const KEY_ = 'sb_publishable_JlwotI10bjrTsBf_95B3UQ_H8IFcJFt';
+  const STORAGE_KEY = 'sb-pkincwcubgemtnkkevhp-auth-token';
+  const FAGGRUPPER = ['Læge', 'Sygeplejerske', 'Social- og sundhedsassistent', 'Medicinstuderende', 'Sygeplejestuderende', 'Andet'];
+
+  let sb = null;
+  let bruger = null;     // auth user
+  let profil = null;     // public.profiler
+  let pollTimer = null;
+
+  function sikker(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function dato(iso){ if(!iso) return ''; const d = new Date(iso); return d.toLocaleDateString('da-DK', {day:'numeric', month:'short'}) + ' ' + d.toLocaleTimeString('da-DK', {hour:'2-digit', minute:'2-digit'}); }
+  function main(){ return document.getElementById('main'); }
+  function vis(html){ main().innerHTML = html; window.scrollTo(0,0); }
+  function el(id){ return document.getElementById(id); }
+  function fejlTekst(e){ return e && (e.message || e.fejl || e.detalje) ? (e.message || e.fejl || e.detalje) : String(e); }
+
+  function lavKlient(storage){
+    sb = window.supabase.createClient(URL_, KEY_, {
+      auth: { storage: storage, storageKey: STORAGE_KEY, persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    });
+  }
+
+  function safeGet(st, k){ try { return st.getItem(k); } catch(e){ return null; } }
+
+  async function hentProfil(){
+    if(!bruger){ profil = null; return; }
+    const { data } = await sb.from('profiler').select('*, afdelinger(navn)').eq('id', bruger.id).maybeSingle();
+    profil = data || null;
+  }
+
+  function visningsnavn(){
+    if(profil && profil.navn) return profil.navn;
+    if(bruger && bruger.email) return bruger.email.split('@')[0];
+    return '';
+  }
+
+  function opdaterHeader(){
+    el('hvem').innerHTML = bruger ? sikker(visningsnavn()) + ' · <a href="#/logud" style="color:#fff">Log ud</a>' : '';
+  }
+
+  // ───────────── Sider ─────────────
+
+  function sideLogin(besked){
+    vis(`
+      <h1>Log ind</h1>
+      <div class="kort">
+        <p>Tast din e-mail, så sender vi en 6-cifret kode til din mail. Du kan læse mailen hvor som helst — koden tastes her.</p>
+        <label for="email">E-mail</label>
+        <input id="email" type="email" autocomplete="email" inputmode="email" placeholder="navn@regionh.dk">
+        <div class="tjek"><input id="husk" type="checkbox" checked><span>Husk mig på denne enhed (slå fra på en fælles PC)</span></div>
+        <button class="knap" id="send">Send kode</button>
+        <div class="fejl" id="fejl">${sikker(besked || '')}</div>
+      </div>
+      <p class="lille-tekst">Login kræver invitation. Har du ikke fået en, så spørg afdelingens VR-ansvarlige.</p>
+    `);
+    el('send').onclick = async () => {
+      const email = el('email').value.trim().toLowerCase();
+      if(!email){ el('fejl').textContent = 'Skriv din e-mail.'; return; }
+      el('send').disabled = true; el('fejl').textContent = '';
+      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+      el('send').disabled = false;
+      if(error){
+        const m = error.message || '';
+        if(/signups not allowed|not allowed|Signups/i.test(m)) el('fejl').textContent = 'Den e-mail er ikke inviteret endnu. Spørg afdelingens VR-ansvarlige.';
+        else if(/rate limit/i.test(m)) el('fejl').textContent = 'Der er sendt for mange mails lige nu — prøv igen om lidt.';
+        else if(/not authorized/i.test(m)) el('fejl').textContent = 'Mailsystemet kan endnu kun sende til testadresser (' + m + ').';
+        else el('fejl').textContent = 'Kunne ikke sende koden: ' + m;
+        return;
+      }
+      sideKode(email, el('husk').checked);
+    };
+  }
+
+  function sideKode(email, husk){
+    vis(`
+      <h1>Tast koden</h1>
+      <div class="kort">
+        <p>Vi har sendt en 6-cifret kode til <b>${sikker(email)}</b>. Læs den i din mail (også på PC'en) og tast den her.</p>
+        <label for="kode">Kode</label>
+        <input id="kode" class="kode" type="tel" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="••••••">
+        <button class="knap" id="ok">Log ind</button>
+        <button class="knap sekundaer" id="igen">Send en ny kode</button>
+        <div class="fejl" id="fejl"></div>
+      </div>
+    `);
+    el('kode').focus();
+    el('igen').onclick = () => sideLogin();
+    el('ok').onclick = async () => {
+      const token = el('kode').value.replace(/\D/g, '');
+      if(!/^\d{6,8}$/.test(token)){ el('fejl').textContent = 'Koden er de 6 cifre fra mailen.'; return; }
+      el('ok').disabled = true; el('fejl').textContent = '';
+      if(!husk){ lavKlient(window.sessionStorage); }
+      let res = await sb.auth.verifyOtp({ email, token, type: 'email' });
+      if(res.error){ res = await sb.auth.verifyOtp({ email, token, type: 'invite' }); }
+      if(res.error){ res = await sb.auth.verifyOtp({ email, token, type: 'magiclink' }); }
+      el('ok').disabled = false;
+      if(res.error){ el('fejl').textContent = 'Koden passer ikke eller er udløbet. Prøv igen, eller send en ny kode.'; return; }
+      bruger = res.data.user; await hentProfil(); opdaterHeader();
+      location.hash = '#/';
+      rute();
+    };
+  }
+
+  function sideVelkommen(){
+    const navn = (profil && profil.navn) || '';
+    vis(`
+      <h1>Velkommen</h1>
+      <div class="kort">
+        <p>Bekræft dit navn, og læs privatlivsteksten — så er du klar til brillen.</p>
+        <label for="navn">Navn</label>
+        <input id="navn" type="text" autocomplete="name" value="${sikker(navn)}">
+        <label for="fag">Faggruppe</label>
+        <select id="fag">${FAGGRUPPER.map(f => `<option ${profil && profil.faggruppe === f ? 'selected' : ''}>${sikker(f)}</option>`).join('')}</select>
+        <p class="lille-tekst">Afdeling: ${sikker(profil && profil.afdelinger ? profil.afdelinger.navn : '—')}</p>
+        <div class="tjek"><input id="samtykke" type="checkbox"><span>Jeg har læst <a href="#/privatliv" target="_blank">privatlivsteksten</a> og er indforstået med, at min træningsfremdrift gemmes på min profil.</span></div>
+        <button class="knap" id="ok">Fortsæt</button>
+        <div class="fejl" id="fejl"></div>
+      </div>
+    `);
+    el('ok').onclick = async () => {
+      const n = el('navn').value.trim();
+      if(!n){ el('fejl').textContent = 'Skriv dit navn.'; return; }
+      if(!el('samtykke').checked){ el('fejl').textContent = 'Sæt flueben ved privatlivsteksten for at fortsætte.'; return; }
+      el('ok').disabled = true;
+      const r1 = await sb.rpc('opdater_min_profil', { p_navn: n, p_faggruppe: el('fag').value });
+      const r2 = await sb.rpc('saet_samtykke');
+      if(r1.error || r2.error){ el('ok').disabled = false; el('fejl').textContent = 'Kunne ikke gemme: ' + fejlTekst(r1.error || r2.error); return; }
+      await hentProfil(); opdaterHeader();
+      location.hash = '#/'; rute();
+    };
+  }
+
+  function sideHjem(){
+    const erAdmin = profil && profil.er_admin;
+    vis(`
+      <h1>Hej ${sikker(visningsnavn())}</h1>
+      <a class="knap stor" href="#/brille">Log ind i brillen</a>
+      <p class="lille-tekst" style="text-align:center">Tryk, tag brillen på, og tryk <b>Log ind som ${sikker(visningsnavn())}</b> på introskærmen.</p>
+      <nav class="bund">
+        <a class="knap sekundaer" href="#/fremdrift">Min fremdrift</a>
+        <a class="knap sekundaer" href="#/profil">Min profil</a>
+        ${erAdmin ? '<a class="knap sekundaer" href="#/admin">Admin</a>' : ''}
+      </nav>
+    `);
+  }
+
+  async function sideBrille(){
+    vis(`<h1>Log ind i brillen</h1><div class="kort"><p class="status">Opretter …</p></div>`);
+    const { data: r, error } = await sb.rpc('opret_reservation');
+    if(error){ vis(`<h1>Log ind i brillen</h1><div class="kort"><p class="fejl">Det lykkedes ikke: ${sikker(fejlTekst(error))}</p><a class="knap" href="#/">Tilbage</a></div>`); return; }
+    const udloeber = new Date(r.udloeber).getTime();
+    vis(`
+      <h1>Log ind i brillen</h1>
+      <div class="kort">
+        <p class="status">Klar — tag brillen på og tryk <b>Log ind som ${sikker(visningsnavn())}</b> inden</p>
+        <div class="tael" id="tael">5:00</div>
+        <p class="status daemp" id="st">Venter på brillen …</p>
+        <a class="knap sekundaer" href="#/" id="annuller">Annullér</a>
+      </div>
+      <p class="lille-tekst">Brillen skal være vågen og online i det øjeblik, du trykker Log ind. Er den ikke det, så fortsæt som gæst — det blokerer aldrig.</p>
+    `);
+    stopPoll();
+    const tik = async () => {
+      const rest = Math.max(0, Math.round((udloeber - Date.now()) / 1000));
+      el('tael').textContent = Math.floor(rest / 60) + ':' + String(rest % 60).padStart(2, '0');
+      const { data: s } = await sb.rpc('reservation_status', { p_id: r.id });
+      if(!s) return;
+      if(s.status === 'indloest'){
+        stopPoll();
+        el('tael').textContent = '✓';
+        el('st').className = 'status ok';
+        el('st').textContent = 'Brillen er logget ind' + (s.brille ? ' (' + s.brille + ')' : '') + '. God træning!';
+        el('annuller').textContent = 'Tilbage';
+      } else if(s.status === 'udloebet' || rest <= 0){
+        stopPoll();
+        el('st').className = 'status fejl';
+        el('st').textContent = 'Tiden løb ud — tryk igen, når du står med brillen.';
+        el('annuller').textContent = 'Tilbage';
+      }
+    };
+    await tik();
+    pollTimer = setInterval(tik, 3000);
+    el('annuller').onclick = async () => {
+      stopPoll();
+      await sb.from('reservationer').update({ annulleret: true }).eq('id', r.id).is('indloest', null);
+    };
+  }
+
+  function stopPoll(){ if(pollTimer){ clearInterval(pollTimer); pollTimer = null; } }
+
+  async function sideFremdrift(){
+    vis(`<h1>Min fremdrift</h1><p class="daemp">Henter …</p>`);
+    const [{ data: f }, { data: s }] = await Promise.all([
+      sb.rpc('min_fremdrift'),
+      sb.from('sessioner').select('id, scenarie, modul, start_at, varighed_sek, resultat, antal_fejlhandlinger, antal_manglende').order('start_at', { ascending: false }).limit(50)
+    ]);
+    const liste = f || [];
+    const sessioner = s || [];
+    const total = sessioner.length;
+    const gennem = sessioner.filter(x => x.resultat === 'gennemfoert').length;
+    const res = { gennemfoert: ['Gennemført', 'groen'], afsluttet_foer_tid: ['Afsluttet før tid', 'gul'], afbrudt: ['Afbrudt', 'roed'] };
+    vis(`
+      <h1>Min fremdrift</h1>
+      <div class="kort grid2">
+        <div><div class="tael">${total}</div><div class="lille-tekst" style="text-align:center">sessioner</div></div>
+        <div><div class="tael">${gennem}</div><div class="lille-tekst" style="text-align:center">gennemført</div></div>
+      </div>
+      <h2>Pr. scenarie</h2>
+      <div class="kort">
+        ${liste.length ? liste.map(x => `
+          <div class="raekke">
+            <div><b>${sikker(x.scenarie)}</b><div class="lille-tekst">${sikker(x.modul || '')} · seneste ${dato(x.seneste)}</div></div>
+            <div style="text-align:right"><span class="pille ${x.uden_fejl > 0 ? 'groen' : (x.gennemfoert > 0 ? 'gul' : '')}">${x.gennemfoert}/${x.antal}</span><div class="lille-tekst">${x.uden_fejl} uden fejl</div></div>
+          </div>`).join('') : '<p class="daemp">Ingen sessioner endnu — log ind i brillen og træn.</p>'}
+      </div>
+      <h2>Seneste sessioner</h2>
+      <div class="kort">
+        ${sessioner.length ? sessioner.map(x => `
+          <div class="raekke">
+            <div><b>${sikker(x.scenarie)}</b><div class="lille-tekst">${dato(x.start_at)}${x.varighed_sek ? ' · ' + Math.round(x.varighed_sek / 60) + ' min' : ''}${x.antal_fejlhandlinger ? ' · ' + x.antal_fejlhandlinger + ' fejlhandling(er)' : ''}</div></div>
+            <span class="pille ${(res[x.resultat] || ['?',''])[1]}">${(res[x.resultat] || [x.resultat])[0]}</span>
+          </div>`).join('') : '<p class="daemp">—</p>'}
+      </div>
+      <a class="knap sekundaer" href="#/">Tilbage</a>
+    `);
+  }
+
+  function sideProfil(){
+    vis(`
+      <h1>Min profil</h1>
+      <div class="kort">
+        <label>E-mail</label><div>${sikker(bruger.email)}</div>
+        <label for="navn">Navn</label><input id="navn" type="text" value="${sikker(profil && profil.navn || '')}">
+        <label for="fag">Faggruppe</label>
+        <select id="fag">${FAGGRUPPER.map(f => `<option ${profil && profil.faggruppe === f ? 'selected' : ''}>${sikker(f)}</option>`).join('')}</select>
+        <label>Afdeling</label><div>${sikker(profil && profil.afdelinger ? profil.afdelinger.navn : '—')} <span class="lille-tekst">(ændres af admin)</span></div>
+        <button class="knap" id="gem">Gem</button>
+        <div class="fejl" id="fejl"></div>
+      </div>
+      <div class="kort">
+        <p class="lille-tekst">Vil du have dine data slettet, så skriv til afdelingens VR-ansvarlige — profil og sessioner slettes samlet.</p>
+        <a class="knap sekundaer" href="#/logud">Log ud</a>
+      </div>
+      <a class="knap sekundaer" href="#/">Tilbage</a>
+    `);
+    el('gem').onclick = async () => {
+      const { error } = await sb.rpc('opdater_min_profil', { p_navn: el('navn').value.trim(), p_faggruppe: el('fag').value });
+      el('fejl').className = error ? 'fejl' : 'ok'; el('fejl').textContent = error ? fejlTekst(error) : 'Gemt.';
+      await hentProfil(); opdaterHeader();
+    };
+  }
+
+  function sidePrivatliv(){
+    vis(`
+      <h1>Privatliv</h1>
+      <div class="kort">
+        <p class="lille-tekst">Gælder VR ITA-sitet og login i VR-brillen. Version 2. november 2026.</p>
+        <h2>Formål</h2>
+        <p>At gemme din træningsfremdrift i VR ITA, så du selv kan følge den — og så afdelingen kan se samlet brug af brillen. Afdelingstal vises kun som samlede tal (aldrig navne, og først når mindst 5 brugere indgår).</p>
+        <h2>Hvad gemmes</h2>
+        <p><b>Om dig:</b> e-mail, navn, afdeling og faggruppe (oprettet af den, der inviterer dig). <b>Om din træning:</b> scenarie, tidspunkter, dine handlinger i scenariet (interventioner, fejlhandlinger, forløb) og resultatet. <b>Om dine logins:</b> hvornår og i hvilken brille du loggede ind og ud. Træning som gæst gemmes uden person — kun brillens afdeling.</p>
+        <h2>Grundlag</h2>
+        <p>Dit samtykke, som du giver ved første login. Du kan trække det tilbage når som helst ved at bede om sletning — så ophører al gemning af din træning, og du kan fortsat træne som gæst.</p>
+        <h2>Hvor og hvor længe</h2>
+        <p>Data ligger i en database hos Supabase i EU (Paris). Login-koder sendes med e-mail gennem Resend; selve siden vises fra GitHub Pages, som ikke gemmer persondata. Brillen gemmer ingen login mellem brugere og kun midlertidigt rapporter, der venter på net. Din profil gemmes, til du beder om sletning; detaljerede sessioner slettes efter 2 år (samlede tal uden person beholdes). I browseren gemmes kun dit login (90 dage — eller til browseren lukkes, hvis "Husk mig" er fravalgt).</p>
+        <h2>Hvem ser hvad</h2>
+        <p>Du ser dine egne data under Min fremdrift og Min profil. Administrator (den VR-ansvarlige) ser brugere, briller og sessioner for at drive systemet. Data videregives ikke til andre, og navne vises aldrig offentligt.</p>
+        <h2>Dine rettigheder</h2>
+        <p>Indsigt, rettelse, udlevering (eksport) og sletning: skriv til den dataansvarlige nedenfor — sletning sker inden for 30 dage. Du kan klage til Datatilsynet (datatilsynet.dk).</p>
+        <h2>Dataansvarlig</h2>
+        <p>Søren Bache, SBache.com (CVR 38286277) · <a href="mailto:bache@dadlnet.dk">bache@dadlnet.dk</a>. Databehandlere: Supabase Inc. (database og login, EU-region) og Resend Inc. (e-mail med login-kode).</p>
+      </div>
+      <a class="knap sekundaer" href="#/">Tilbage</a>
+    `);
+  }
+
+  // ───────────── Admin ─────────────
+
+  async function sideAdmin(fane){
+    if(!(profil && profil.er_admin)){ location.hash = '#/'; rute(); return; }
+    fane = fane || 'brugere';
+    const faner = [['brugere', 'Brugere'], ['briller', 'Briller'], ['afdelinger', 'Afdelinger'], ['sessioner', 'Sessioner']];
+    const top = `<h1>Admin</h1><div class="faner">${faner.map(f => `<a href="#/admin/${f[0]}" class="${f[0] === fane ? 'aktiv' : ''}">${f[1]}</a>`).join('')}</div>`;
+    vis(top + '<p class="daemp">Henter …</p>');
+    const { data: afd } = await sb.from('afdelinger').select('*').order('navn');
+    const afdValg = (valgt) => (afd || []).map(a => `<option value="${a.id}" ${a.id === valgt ? 'selected' : ''}>${sikker(a.navn)}</option>`).join('');
+
+    if(fane === 'brugere'){
+      const { data: brugere } = await sb.from('profiler').select('*, afdelinger(navn)').order('oprettet', { ascending: false });
+      vis(top + `
+        <div class="kort">
+          <h2 style="margin-top:0">Invitér bruger</h2>
+          <label for="i_email">E-mail</label><input id="i_email" type="email" placeholder="navn@regionh.dk">
+          <label for="i_navn">Navn</label><input id="i_navn" type="text">
+          <label for="i_afd">Afdeling</label><select id="i_afd">${afdValg(profil.afdeling_id)}</select>
+          <label for="i_fag">Faggruppe</label><select id="i_fag">${FAGGRUPPER.map(f => `<option>${sikker(f)}</option>`).join('')}</select>
+          <button class="knap" id="inviter">Send invitation</button>
+          <div class="fejl" id="i_fejl"></div>
+        </div>
+        <h2>Brugere (${(brugere || []).length})</h2>
+        <div class="kort">
+          ${(brugere || []).map(b => `
+            <div class="raekke">
+              <div><b>${sikker(b.navn || '(intet navn)')}</b> ${b.er_admin ? '<span class="pille">admin</span>' : ''}<div class="lille-tekst">${sikker(b.email)} · ${sikker(b.afdelinger ? b.afdelinger.navn : '—')} · ${sikker(b.faggruppe || '')}</div><div class="lille-tekst">${b.samtykke_at ? 'Aktiv siden ' + dato(b.samtykke_at) : 'Inviteret ' + dato(b.oprettet) + ' — ikke logget ind endnu'}</div></div>
+              <button class="knap lille sekundaer slet" data-id="${b.id}" data-navn="${sikker(b.navn || b.email)}">Slet</button>
+            </div>`).join('') || '<p class="daemp">Ingen brugere.</p>'}
+        </div>
+      `);
+      el('inviter').onclick = async () => {
+        el('inviter').disabled = true; el('i_fejl').textContent = '';
+        const { data, error } = await sb.functions.invoke('admin', { body: { handling: 'inviter', email: el('i_email').value, navn: el('i_navn').value, afdeling_id: el('i_afd').value, faggruppe: el('i_fag').value } });
+        el('inviter').disabled = false;
+        const svar = data || {};
+        if(error || svar.fejl){ el('i_fejl').textContent = 'Invitationen blev ikke sendt: ' + (svar.detalje || svar.fejl || fejlTekst(error)); return; }
+        el('i_fejl').className = 'ok'; el('i_fejl').textContent = 'Invitation sendt.';
+        setTimeout(() => sideAdmin('brugere'), 800);
+      };
+      main().querySelectorAll('.slet').forEach(k => k.onclick = async () => {
+        if(!confirm('Slet ' + k.dataset.navn + ' med alle sessioner? Det kan ikke fortrydes.')) return;
+        const { data, error } = await sb.functions.invoke('admin', { body: { handling: 'slet_bruger', bruger_id: k.dataset.id } });
+        if(error || (data && data.fejl)) alert('Kunne ikke slette: ' + ((data && (data.detalje || data.fejl)) || fejlTekst(error)));
+        sideAdmin('brugere');
+      });
+    }
+
+    if(fane === 'briller'){
+      const [{ data: briller }, { data: hist }, { data: ukendte }] = await Promise.all([
+        sb.from('briller').select('*').order('navn'),
+        sb.from('brille_afdeling').select('*, afdelinger(navn)').is('til', null),
+        sb.from('ukendte_briller').select('*').order('sidst_set', { ascending: false })
+      ]);
+      const afdFor = (id) => { const h = (hist || []).find(x => x.brille_id === id); return h ? h.afdelinger.navn : '—'; };
+      vis(top + `
+        <div class="kort">
+          <h2 style="margin-top:0">Ny brille</h2>
+          <label for="b_navn">Navn (står på mærkaten)</label><input id="b_navn" type="text" placeholder="Neuro-ITA 1">
+          <label for="b_serie">Serienummer</label><input id="b_serie" type="text" placeholder="2G0YC1ZF8H08H4">
+          <label for="b_type">Type</label><select id="b_type"><option value="kiosk">Kiosk (feltbrille)</option><option value="udvikling">Udviklingsbrille</option></select>
+          <label for="b_afd">Afdeling</label><select id="b_afd">${afdValg(profil.afdeling_id)}</select>
+          <button class="knap" id="b_opret">Opret</button>
+          <div class="fejl" id="b_fejl"></div>
+        </div>
+        <h2>Briller (${(briller || []).length})</h2>
+        <div class="kort">
+          ${(briller || []).map(b => `
+            <div class="raekke">
+              <div><b>${sikker(b.navn)}</b> <span class="pille">${b.type}</span>${b.enheds_id ? '' : ' <span class="pille gul">ikke knyttet</span>'}<div class="lille-tekst">${sikker(b.serienummer || '')} · ${sikker(afdFor(b.id))}${b.sidst_set ? ' · set ' + dato(b.sidst_set) : ''}${b.app_version ? ' · v' + sikker(b.app_version) : ''}</div></div>
+              <select class="flyt" data-id="${b.id}" style="width:auto"><option value="">Flyt til …</option>${afdValg('')}</select>
+            </div>`).join('') || '<p class="daemp">Ingen briller endnu.</p>'}
+        </div>
+        <h2>Ukendte briller, der har ringet hjem (${(ukendte || []).length})</h2>
+        <div class="kort">
+          ${(ukendte || []).map(u => `
+            <div class="raekke">
+              <div><b>${sikker(u.enheds_id.slice(0, 12))}…</b><div class="lille-tekst">set ${dato(u.sidst_set)} · ${u.antal_kontakter} kontakter${u.app_version ? ' · v' + sikker(u.app_version) : ''}</div></div>
+              <select class="knyt" data-id="${sikker(u.enheds_id)}" style="width:auto"><option value="">Knyt til …</option>${(briller || []).filter(b => !b.enheds_id).map(b => `<option value="${b.id}">${sikker(b.navn)}</option>`).join('')}</select>
+            </div>`).join('') || '<p class="daemp">Ingen — brillen melder sig her, første gang den ringer hjem.</p>'}
+        </div>
+      `);
+      el('b_opret').onclick = async () => {
+        el('b_fejl').textContent = '';
+        const navn = el('b_navn').value.trim(); if(!navn){ el('b_fejl').textContent = 'Giv brillen et navn.'; return; }
+        const { data: ny, error } = await sb.from('briller').insert({ navn, serienummer: el('b_serie').value.trim() || null, type: el('b_type').value }).select().single();
+        if(error){ el('b_fejl').textContent = fejlTekst(error); return; }
+        const { error: e2 } = await sb.from('brille_afdeling').insert({ brille_id: ny.id, afdeling_id: el('b_afd').value });
+        if(e2){ el('b_fejl').textContent = fejlTekst(e2); return; }
+        sideAdmin('briller');
+      };
+      main().querySelectorAll('.flyt').forEach(s => s.onchange = async () => {
+        if(!s.value) return;
+        const nu = new Date().toISOString();
+        await sb.from('brille_afdeling').update({ til: nu }).eq('brille_id', s.dataset.id).is('til', null);
+        const { error } = await sb.from('brille_afdeling').insert({ brille_id: s.dataset.id, afdeling_id: s.value, fra: nu });
+        if(error) alert(fejlTekst(error));
+        sideAdmin('briller');
+      });
+      main().querySelectorAll('.knyt').forEach(s => s.onchange = async () => {
+        if(!s.value) return;
+        const { error } = await sb.from('briller').update({ enheds_id: s.dataset.id }).eq('id', s.value);
+        if(error){ alert(fejlTekst(error)); return; }
+        await sb.from('ukendte_briller').delete().eq('enheds_id', s.dataset.id);
+        sideAdmin('briller');
+      });
+    }
+
+    if(fane === 'afdelinger'){
+      vis(top + `
+        <div class="kort">
+          <h2 style="margin-top:0">Ny afdeling</h2>
+          <label for="a_navn">Navn</label><input id="a_navn" type="text" placeholder="Neurointensiv">
+          <label for="a_hosp">Hospital</label><input id="a_hosp" type="text" placeholder="Rigshospitalet">
+          <button class="knap" id="a_opret">Opret</button>
+          <div class="fejl" id="a_fejl"></div>
+        </div>
+        <h2>Afdelinger</h2>
+        <div class="kort">${(afd || []).map(a => `<div class="raekke"><div><b>${sikker(a.navn)}</b><div class="lille-tekst">${sikker(a.hospital || '')}</div></div></div>`).join('') || '<p class="daemp">Ingen.</p>'}</div>
+      `);
+      el('a_opret').onclick = async () => {
+        const { error } = await sb.from('afdelinger').insert({ navn: el('a_navn').value.trim(), hospital: el('a_hosp').value.trim() || null });
+        if(error){ el('a_fejl').textContent = fejlTekst(error); return; }
+        sideAdmin('afdelinger');
+      };
+    }
+
+    if(fane === 'sessioner'){
+      const { data: s } = await sb.from('sessioner').select('id, scenarie, modul, start_at, varighed_sek, resultat, antal_fejlhandlinger, app_version, profiler(navn, email), briller(navn), afdelinger(navn)').order('start_at', { ascending: false }).limit(100);
+      const res = { gennemfoert: ['Gennemført', 'groen'], afsluttet_foer_tid: ['Før tid', 'gul'], afbrudt: ['Afbrudt', 'roed'] };
+      vis(top + `
+        <h2>Seneste 100 sessioner</h2>
+        <div class="kort">${(s || []).map(x => `
+          <div class="raekke">
+            <div><b>${sikker(x.scenarie)}</b><div class="lille-tekst">${dato(x.start_at)} · ${x.profiler ? sikker(x.profiler.navn || x.profiler.email) : 'gæst'} · ${sikker(x.briller ? x.briller.navn : '—')} · ${sikker(x.afdelinger ? x.afdelinger.navn : '—')}${x.varighed_sek ? ' · ' + Math.round(x.varighed_sek / 60) + ' min' : ''}${x.antal_fejlhandlinger ? ' · ' + x.antal_fejlhandlinger + ' fejl' : ''}</div></div>
+            <span class="pille ${(res[x.resultat] || ['?',''])[1]}">${(res[x.resultat] || [x.resultat])[0]}</span>
+          </div>`).join('') || '<p class="daemp">Ingen sessioner endnu.</p>'}</div>
+      `);
+    }
+  }
+
+  // ───────────── Ruter ─────────────
+
+  async function rute(){
+    stopPoll();
+    const h = location.hash || '#/';
+    const dele = h.replace(/^#\/?/, '').split('/');
+    const side = dele[0] || '';
+    if(side === 'privatliv'){ sidePrivatliv(); return; }
+    if(side === 'logud'){ await sb.auth.signOut(); bruger = null; profil = null; opdaterHeader(); location.hash = '#/'; sideLogin('Du er logget ud.'); return; }
+    if(!bruger){ sideLogin(); return; }
+    if(!profil){ await hentProfil(); }
+    if(profil && !profil.samtykke_at && side !== 'velkommen'){ sideVelkommen(); return; }
+    switch(side){
+      case '': sideHjem(); break;
+      case 'velkommen': sideVelkommen(); break;
+      case 'brille': sideBrille(); break;
+      case 'fremdrift': sideFremdrift(); break;
+      case 'profil': sideProfil(); break;
+      case 'admin': sideAdmin(dele[1]); break;
+      default: sideHjem();
+    }
+  }
+
+  async function start(){
+    const st = safeGet(window.sessionStorage, STORAGE_KEY) ? window.sessionStorage : window.localStorage;
+    lavKlient(st);
+    const { data } = await sb.auth.getSession();
+    bruger = data && data.session ? data.session.user : null;
+    await hentProfil();
+    opdaterHeader();
+    sb.auth.onAuthStateChange((ev, session) => {
+      if(ev === 'SIGNED_OUT'){ bruger = null; profil = null; opdaterHeader(); }
+      if(ev === 'SIGNED_IN' && session){ bruger = session.user; }
+    });
+    window.addEventListener('hashchange', rute);
+    rute();
+  }
+  start();
+})();
+</script>
+</body>
+</html>
